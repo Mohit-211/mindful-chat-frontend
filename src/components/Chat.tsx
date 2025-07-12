@@ -1,10 +1,8 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Send, LogOut } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
   id: string;
@@ -13,7 +11,6 @@ interface Message {
   timestamp: Date;
 }
 
-
 const Chat = () => {
   const [model, setModel] = useState<"ollama" | "openai">("ollama");
   const [messages, setMessages] = useState<Message[]>([
@@ -21,13 +18,27 @@ const Chat = () => {
       id: "welcome",
       text: "Hello! I'm here to listen and support you. Feel free to share what's on your mind, and remember - this is a safe, judgment-free space. How are you feeling today?",
       isUser: false,
-      timestamp: new Date()
-    }
+      timestamp: new Date(),
+    },
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [userName, setUserName] = useState("User");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { logout, user } = useAuth();
+
+  useEffect(() => {
+    const storedName = localStorage.getItem("userName");
+    const storedEmail = localStorage.getItem("userEmail");
+
+    if (!storedEmail) {
+      window.location.href = "/";
+    }
+
+    if (storedName) {
+      setUserName(storedName);
+    }
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -44,57 +55,51 @@ const Chat = () => {
       id: Date.now().toString(),
       text: inputMessage,
       isUser: true,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
     setIsLoading(true);
 
     try {
-      // Simulate API call to /api/chat
-      console.log('Sending message to /api/chat:', inputMessage);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: inputMessage,
+          model,
+        }),
+      });
 
-const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chat`, {
+      const data = await res.json();
 
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    message: inputMessage,
-    model // this will be "ollama" or "openai"
-  })
-});
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: data.response || "Sorry, I couldn’t understand that.",
+        isUser: false,
+        timestamp: new Date(),
+      };
 
-
-const data = await res.json();
-
-const botMessage: Message = {
-  id: (Date.now() + 1).toString(),
-  text: data.response || "Sorry, I couldn’t understand that.",
-  isUser: false,
-  timestamp: new Date()
-};
-
-
-      setMessages(prev => [...prev, botMessage]);
+      setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
-      console.error('Chat API error:', error);
+      console.error("Chat API error:", error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.",
         isUser: false,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
@@ -102,7 +107,9 @@ const botMessage: Message = {
 
   const handleEndChat = () => {
     if (window.confirm("Are you sure you want to end this chat session?")) {
-      logout();
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("userName");
+      window.location.href = "/";
     }
   };
 
@@ -115,8 +122,10 @@ const botMessage: Message = {
             <span className="text-blue-600 text-sm">💙</span>
           </div>
           <div>
-            <h1 className="font-semibold text-gray-800">MindCare Chat</h1>
-            <p className="text-xs text-gray-500">Safe & Private</p>
+            <h1 className="font-semibold text-gray-800">Welcome, {userName}</h1>
+            <p className="text-xs text-gray-500">
+              You're chatting with MindCare
+            </p>
           </div>
         </div>
         <Button
@@ -129,38 +138,45 @@ const botMessage: Message = {
           End Chat
         </Button>
       </div>
-      <div className="px-4 pt-2">
-  <label className="text-sm text-gray-600 mr-2">Choose Model:</label>
-  <select
-    className="text-sm border rounded px-2 py-1 text-gray-700"
-    value={model}
-    onChange={(e) => setModel(e.target.value as "ollama" | "openai")}
-  >
-    <option value="ollama">Ollama</option>
-    <option value="openai">OpenAI</option>
-  </select>
-</div>
 
-      
+      {/* Model selection */}
+      <div className="px-4 pt-2">
+        <label className="text-sm text-gray-600 mr-2">Choose Model:</label>
+        <select
+          className="text-sm border rounded px-2 py-1 text-gray-700"
+          value={model}
+          onChange={(e) => setModel(e.target.value as "ollama" | "openai")}
+        >
+          <option value="ollama">Ollama</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </div>
+
       {/* Chat Window */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${
+              message.isUser ? "justify-end" : "justify-start"
+            }`}
           >
-            <Card className={`max-w-[80%] md:max-w-[60%] p-4 ${
-              message.isUser 
-                ? 'bg-blue-400 text-white border-blue-400' 
-                : 'bg-white/80 text-gray-800 border-gray-200'
-            }`}>
+            <Card
+              className={`max-w-[80%] md:max-w-[60%] p-4 ${
+                message.isUser
+                  ? "bg-blue-400 text-white border-blue-400"
+                  : "bg-white/80 text-gray-800 border-gray-200"
+              }`}
+            >
               <p className="text-sm leading-relaxed">{message.text}</p>
-              <p className={`text-xs mt-2 ${
-                message.isUser ? 'text-blue-100' : 'text-gray-500'
-              }`}>
-                {message.timestamp.toLocaleTimeString([], { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
+              <p
+                className={`text-xs mt-2 ${
+                  message.isUser ? "text-blue-100" : "text-gray-500"
+                }`}
+              >
+                {message.timestamp.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
               </p>
             </Card>
@@ -171,8 +187,14 @@ const botMessage: Message = {
             <Card className="bg-white/80 text-gray-800 border-gray-200 p-4">
               <div className="flex space-x-1">
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div
+                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                  style={{ animationDelay: "0.1s" }}
+                ></div>
+                <div
+                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                  style={{ animationDelay: "0.2s" }}
+                ></div>
               </div>
             </Card>
           </div>
@@ -200,7 +222,8 @@ const botMessage: Message = {
           </Button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          This is a supportive AI assistant. For emergencies, please contact local emergency services.
+          This is a supportive AI assistant. For emergencies, please contact
+          local emergency services.
         </p>
       </div>
     </div>

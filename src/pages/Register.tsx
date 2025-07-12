@@ -1,6 +1,7 @@
 // src/pages/Register.js
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 function Register() {
   const [form, setForm] = useState({
@@ -20,8 +21,14 @@ function Register() {
     e.preventDefault();
     setError("");
 
+    // Basic phone number validation (optional)
+    if (!/^\d{10}$/.test(form.phone)) {
+      setError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
     try {
-      const res = await fetch("http://localhost:3000/api/register", {
+      const res = await fetch("http://madira.xyz:3000/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -31,6 +38,7 @@ function Register() {
 
       if (!res.ok) throw new Error(data.error || "Registration failed");
 
+      // Redirect to OTP verification
       navigate(`/verify-otp?email=${encodeURIComponent(form.email)}`);
     } catch (err) {
       setError(err.message);
@@ -43,6 +51,7 @@ function Register() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           name="name"
+          value={form.name}
           onChange={handleChange}
           placeholder="Name"
           required
@@ -51,6 +60,7 @@ function Register() {
         <input
           type="email"
           name="email"
+          value={form.email}
           onChange={handleChange}
           placeholder="Email"
           required
@@ -58,13 +68,16 @@ function Register() {
         />
         <input
           name="phone"
+          value={form.phone}
           onChange={handleChange}
           placeholder="Phone"
+          required
           className="w-full p-2 border rounded"
         />
         <input
           type="password"
           name="password"
+          value={form.password}
           onChange={handleChange}
           placeholder="Password"
           required
