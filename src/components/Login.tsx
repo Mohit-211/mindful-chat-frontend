@@ -30,8 +30,8 @@ const Login = ({ onBack }: LoginProps) => {
     setError("");
 
     const endpoint = isLogin
-      ? "http://madira.xyz:3000/api/login"
-      : "http://madira.xyz:3000/api/register";
+      ? `${import.meta.env.VITE_API_URL}/api/login`
+      : `${import.meta.env.VITE_API_URL}/api/register`;
 
     const payload = isLogin
       ? { email, password }
