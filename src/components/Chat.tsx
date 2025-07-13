@@ -27,26 +27,35 @@ const Chat = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Auth check and user fetch
   useEffect(() => {
-    const storedName = localStorage.getItem("userName");
-    const storedEmail = localStorage.getItem("userEmail");
-
-    if (!storedEmail) {
+    const token = localStorage.getItem("token");
+    if (!token) {
       window.location.href = "/";
+      return;
     }
 
-    if (storedName) {
-      setUserName(storedName);
-    }
+    fetch(`${import.meta.env.VITE_API_URL}/api/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Unauthorized");
+        return res.json();
+      })
+      .then((data) => setUserName(data.name || "User"))
+      .catch(() => {
+        localStorage.removeItem("token");
+        window.location.href = "/";
+      });
   }, []);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -63,15 +72,15 @@ const Chat = () => {
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem("token");
+
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          message: inputMessage,
-          model,
-        }),
+        body: JSON.stringify({ message: inputMessage, model }),
       });
 
       const data = await res.json();
@@ -105,17 +114,28 @@ const Chat = () => {
     }
   };
 
-  const handleEndChat = () => {
-    if (window.confirm("Are you sure you want to end this chat session?")) {
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userName");
-      window.location.href = "/";
+  const handleEndChat = async () => {
+    if (!window.confirm("Are you sure you want to end this chat session?"))
+      return;
+
+    const token = localStorage.getItem("token");
+
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.warn("Logout request failed:", err);
     }
+
+    localStorage.removeItem("token");
+    window.location.href = "/";
   };
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col">
-      {/* Top Navigation */}
+      {/* Top Bar */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -139,7 +159,7 @@ const Chat = () => {
         </Button>
       </div>
 
-      {/* Model selection */}
+      {/* Model Selector */}
       <div className="px-4 pt-2">
         <label className="text-sm text-gray-600 mr-2">Choose Model:</label>
         <select
@@ -154,27 +174,25 @@ const Chat = () => {
 
       {/* Chat Window */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+        {messages.map((msg) => (
           <div
-            key={message.id}
-            className={`flex ${
-              message.isUser ? "justify-end" : "justify-start"
-            }`}
+            key={msg.id}
+            className={`flex ${msg.isUser ? "justify-end" : "justify-start"}`}
           >
             <Card
               className={`max-w-[80%] md:max-w-[60%] p-4 ${
-                message.isUser
+                msg.isUser
                   ? "bg-blue-400 text-white border-blue-400"
                   : "bg-white/80 text-gray-800 border-gray-200"
               }`}
             >
-              <p className="text-sm leading-relaxed">{message.text}</p>
+              <p className="text-sm leading-relaxed">{msg.text}</p>
               <p
                 className={`text-xs mt-2 ${
-                  message.isUser ? "text-blue-100" : "text-gray-500"
+                  msg.isUser ? "text-blue-100" : "text-gray-500"
                 }`}
               >
-                {message.timestamp.toLocaleTimeString([], {
+                {msg.timestamp.toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
@@ -202,7 +220,7 @@ const Chat = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
+      {/* Input */}
       <div className="bg-white/80 backdrop-blur-sm border-t border-gray-200 p-4">
         <div className="flex space-x-2">
           <Input
