@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 // Page imports
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Chat from "./pages/Chat";
+import Chat from "./components/Chat";
 import Register from "./pages/Register";
 import VerifyOtp from "./pages/VerifyOtp";
 

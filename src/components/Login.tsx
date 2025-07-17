@@ -53,8 +53,11 @@ const Login = ({ onBack }: LoginProps) => {
       }
 
       // Store info for use in chat page
-      localStorage.setItem("userEmail", email);
+      localStorage.setItem("token", data.token); // Store the JWT
       localStorage.setItem("userName", data.name || name || "User");
+
+      // Redirect to /chat
+      window.location.href = "/chat";
 
       // Redirect to chat
       window.location.href = "/chat";
