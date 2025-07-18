@@ -10,12 +10,14 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface LoginProps {
   onBack: () => void;
 }
 
 const Login = ({ onBack }: LoginProps) => {
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -54,10 +56,12 @@ const Login = ({ onBack }: LoginProps) => {
 
       // Store info for use in chat page
       localStorage.setItem("userEmail", email);
-      localStorage.setItem("userName", data.name || name || "User");
+      localStorage.setItem("userName", data.name || "User");
+      localStorage.setItem("token", data.token);
 
       // Redirect to chat
-      window.location.href = "/chat";
+
+      navigate("/chat");
     } catch (err: any) {
       setError(err.message);
     } finally {
