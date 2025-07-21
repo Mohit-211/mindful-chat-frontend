@@ -3,17 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Send, LogOut } from "lucide-react";
-
-interface Message {
-  id: string;
-  text: string;
-  isUser: boolean;
-  timestamp: Date;
-}
+import { Message as ChatMessage } from "../types";
 
 const Chat = () => {
   const [model, setModel] = useState<"openai" | "ollama">("openai");
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
       text: "Hello! I'm here to listen and support you. Feel free to share what's on your mind, and remember - this is a safe, judgment-free space. How are you feeling today?",
@@ -27,7 +21,7 @@ const Chat = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auth check and user fetch
+  // Auth check and user name fetch
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -49,18 +43,67 @@ const Chat = () => {
       });
   }, []);
 
+  // Load chat history
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const fetchChatHistory = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "/";
+        return;
+      }
 
-  const scrollToBottom = () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/chat/history`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (!res.ok) throw new Error("Failed to fetch chat history");
+
+        const data = await res.json();
+        const chats = data.chats.reverse(); // Chronological order
+
+        if (!chats.length) return;
+
+        const formattedMessages: ChatMessage[] = [];
+
+        chats.forEach((chat: any) => {
+          const time = new Date(chat.created_at);
+          formattedMessages.push({
+            id: `${chat.id}-user`,
+            text: chat.message,
+            isUser: true,
+            timestamp: time,
+          });
+          formattedMessages.push({
+            id: `${chat.id}-bot`,
+            text: chat.response,
+            isUser: false,
+            timestamp: time,
+          });
+        });
+
+        setMessages(formattedMessages);
+      } catch (err) {
+        console.error("Could not load chat history:", err);
+        localStorage.removeItem("token");
+        window.location.href = "/";
+      }
+    };
+
+    fetchChatHistory();
+  }, []);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, [messages]);
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       text: inputMessage,
       isUser: true,
@@ -85,7 +128,7 @@ const Chat = () => {
 
       const data = await res.json();
 
-      const botMessage: Message = {
+      const botMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         text: data.response || "Sorry, I couldn’t understand that.",
         isUser: false,
@@ -95,13 +138,15 @@ const Chat = () => {
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
       console.error("Chat API error:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.",
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          text: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.",
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -192,7 +237,7 @@ const Chat = () => {
                   msg.isUser ? "text-blue-100" : "text-gray-500"
                 }`}
               >
-                {msg.timestamp.toLocaleTimeString([], {
+                {msg.timestamp?.toLocaleTimeString?.([], {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
@@ -204,15 +249,15 @@ const Chat = () => {
           <div className="flex justify-start">
             <Card className="bg-white/80 text-gray-800 border-gray-200 p-4">
               <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
                 <div
                   className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
                   style={{ animationDelay: "0.1s" }}
-                ></div>
+                />
                 <div
                   className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
                   style={{ animationDelay: "0.2s" }}
-                ></div>
+                />
               </div>
             </Card>
           </div>
