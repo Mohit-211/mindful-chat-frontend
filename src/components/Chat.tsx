@@ -12,7 +12,7 @@ interface Message {
 }
 
 const Chat = () => {
-  const [model, setModel] = useState<"ollama" | "openai">("ollama");
+  const [model, setModel] = useState<"openai" | "ollama">("openai");
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
