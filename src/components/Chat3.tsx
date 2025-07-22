@@ -10,7 +10,7 @@ const Chat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
-      text: "Hello! I'm here to listen and support you. Feel free to share what's on your mind. How are you feeling today?",
+      text: "Hello! I'm here to listen and support you. Feel free to share what's on your mind, and remember – this is a safe, judgment-free space. How are you feeling today?",
       isUser: false,
       timestamp: new Date(),
     },
@@ -18,11 +18,12 @@ const Chat = () => {
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userName, setUserName] = useState("User");
-  const [userId, setUserId] = useState("");
 
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
-  const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
+  const [hasGivenFeedback, setHasGivenFeedback] = useState(
+    localStorage.getItem("hasGivenFeedback") === "true"
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -41,10 +42,7 @@ const Chat = () => {
         if (!res.ok) throw new Error("Unauthorized");
         return res.json();
       })
-      .then((data) => {
-        setUserName(data.name || "User");
-        setUserId(data.id);
-      })
+      .then((data) => setUserName(data.name || "User"))
       .catch(() => {
         localStorage.removeItem("token");
         window.location.href = "/";
@@ -53,10 +51,13 @@ const Chat = () => {
 
   // Load previous chat history
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     const fetchChatHistory = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        window.location.href = "/";
+        return;
+      }
+
       try {
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/api/chat/history`,
@@ -64,6 +65,7 @@ const Chat = () => {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
+
         if (!res.ok) throw new Error("Failed to fetch chat history");
 
         const data = await res.json();
@@ -72,6 +74,7 @@ const Chat = () => {
         if (!chats.length) return;
 
         const formattedMessages: ChatMessage[] = [];
+
         chats.forEach((chat: any) => {
           const time = new Date(chat.created_at);
           formattedMessages.push({
@@ -99,27 +102,10 @@ const Chat = () => {
     fetchChatHistory();
   }, []);
 
-  // Auto-scroll
+  // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // Check feedback status once userId is available
-  useEffect(() => {
-    if (!userId) return;
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to check feedback status");
-        return res.json();
-      })
-      .then((data) => setHasGivenFeedback(data.hasFeedback))
-      .catch((err) => console.error("Feedback check failed:", err));
-  }, [userId]);
 
   // Prompt feedback on tab close
   useEffect(() => {
@@ -177,7 +163,7 @@ const Chat = () => {
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          text: "I'm sorry, I'm having trouble connecting right now.",
+          text: "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.",
           isUser: false,
           timestamp: new Date(),
         },
@@ -196,6 +182,7 @@ const Chat = () => {
 
   const handleEndChat = async () => {
     if (hasGivenFeedback) return logout();
+
     const confirmExit = window.confirm(
       "Would you like to leave feedback before ending the chat?"
     );
@@ -214,7 +201,7 @@ const Chat = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch (err) {
-      console.warn("Logout failed:", err);
+      console.warn("Logout request failed:", err);
     }
     localStorage.removeItem("token");
     window.location.href = "/";
@@ -222,7 +209,6 @@ const Chat = () => {
 
   const submitFeedback = async () => {
     const token = localStorage.getItem("token");
-
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
         method: "POST",
@@ -233,20 +219,15 @@ const Chat = () => {
         body: JSON.stringify({ feedback: feedbackText }),
       });
 
-      const data = await res.json(); // read the response JSON (even on error)
+      if (!res.ok) throw new Error("Failed to submit feedback");
 
-      if (!res.ok) {
-        // Show specific error from backend, if any
-        alert(data.error || "Failed to submit feedback.");
-        return;
-      }
-
+      localStorage.setItem("hasGivenFeedback", "true");
       setHasGivenFeedback(true);
       setShowFeedbackModal(false);
       alert("Thank you for your feedback!");
     } catch (err) {
       console.error("Feedback error:", err);
-      alert("There was an issue submitting your feedback. Please try again.");
+      alert("There was an issue submitting your feedback.");
     }
   };
 
@@ -301,7 +282,7 @@ const Chat = () => {
         </select>
       </div>
 
-      {/* Messages */}
+      {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
           <div
@@ -315,7 +296,7 @@ const Chat = () => {
                   : "bg-white/80 text-gray-800 border-gray-200"
               }`}
             >
-              <p className="text-sm">{msg.text}</p>
+              <p className="text-sm leading-relaxed">{msg.text}</p>
               <p
                 className={`text-xs mt-2 ${
                   msg.isUser ? "text-blue-100" : "text-gray-500"
@@ -335,12 +316,19 @@ const Chat = () => {
             <Card className="bg-white/80 text-gray-800 border-gray-200 p-4">
               <div className="flex space-x-1">
                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+                <div
+                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                  style={{ animationDelay: "0.1s" }}
+                />
+                <div
+                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                  style={{ animationDelay: "0.2s" }}
+                />
               </div>
             </Card>
           </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -351,9 +339,9 @@ const Chat = () => {
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Type your message..."
+            placeholder="Type your message here..."
             disabled={isLoading}
-            className="flex-1"
+            className="flex-1 border-gray-200 focus:border-blue-400 focus:ring-blue-400"
           />
           <Button
             onClick={sendMessage}
@@ -364,8 +352,8 @@ const Chat = () => {
           </Button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          This is a supportive AI assistant. For emergencies, contact local
-          services.
+          This is a supportive AI assistant. For emergencies, please contact
+          local emergency services.
         </p>
       </div>
 
@@ -374,7 +362,7 @@ const Chat = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md">
             <h2 className="text-lg font-semibold mb-2">
-              We'd love your feedback!
+              We’d love your feedback!
             </h2>
             <textarea
               className="w-full border rounded p-2 text-sm"
