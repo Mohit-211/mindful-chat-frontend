@@ -10,7 +10,7 @@ const Chat = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
-      text: "Hello! I'm here to listen and support you. Feel free to share what's on your mind. How are you feeling today?",
+      text: "Hello! I'm here to listen and support you. Feel free to share what's on your mind, and remember – this is a safe, judgment-free space. How are you feeling today?",
       isUser: false,
       timestamp: new Date(),
     },
@@ -255,13 +255,18 @@ const Chat = () => {
       {/* Top Bar */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-            <span className="text-blue-600 text-sm">💙</span>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center">
+            <img
+              src="/icon.png"
+              alt="Madira Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
+
           <div>
             <h1 className="font-semibold text-gray-800">Welcome, {userName}</h1>
             <p className="text-xs text-gray-500">
-              You're chatting with MindCare
+              You're chatting with Madira AI
             </p>
           </div>
         </div>

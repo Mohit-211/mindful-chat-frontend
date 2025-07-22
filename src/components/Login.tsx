@@ -11,6 +11,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 interface LoginProps {
   onBack: () => void;
@@ -72,7 +73,7 @@ const Login = ({ onBack }: LoginProps) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
       <Card className="w-full max-w-md mx-auto shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardHeader className="text-center pb-6">
+        <CardHeader className="text-center pb-4">
           <div className="flex items-center justify-between mb-4">
             <Button
               variant="ghost"
@@ -83,20 +84,27 @@ const Login = ({ onBack }: LoginProps) => {
               <ArrowLeft className="w-4 h-4 mr-1" />
               Back
             </Button>
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-blue-600 text-lg">💙</span>
+            <div className="w-18 h-12 flex items-center justify-center rounded-full overflow-hidden">
+              <img
+                src="/logo.png"
+                alt="Madira Logo"
+                className="object-contain w-full h-full"
+              />
             </div>
-            <div className="w-16"></div>
+            <div className="w-16" />
           </div>
+
           <CardTitle className="text-2xl font-semibold text-gray-800 mb-2">
-            {isLogin ? "Welcome Back" : "Create Account"}
+            {isLogin ? "" : "Create Account"}
           </CardTitle>
+
           <CardDescription className="text-gray-600">
             {isLogin
-              ? "Sign in to continue your mental wellness journey"
+              ? "Login to continue your mental wellness journey"
               : "Join us for a safe and supportive conversation"}
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
@@ -129,6 +137,7 @@ const Login = ({ onBack }: LoginProps) => {
                 </div>
               </>
             )}
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-gray-700">
                 Email
@@ -142,6 +151,7 @@ const Login = ({ onBack }: LoginProps) => {
                 required
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password" className="text-gray-700">
                 Password
@@ -155,9 +165,11 @@ const Login = ({ onBack }: LoginProps) => {
                 required
               />
             </div>
+
             {error && (
               <p className="text-red-500 text-sm text-center">{error}</p>
             )}
+
             <Button
               type="submit"
               disabled={loading}
@@ -166,19 +178,45 @@ const Login = ({ onBack }: LoginProps) => {
               {loading
                 ? "Please wait..."
                 : isLogin
-                ? "Sign In"
+                ? "Login"
                 : "Create Account"}
             </Button>
-          </form>
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-blue-600 hover:text-blue-700 text-sm underline"
+
+            <Button
+              variant="outline"
+              className="w-full py-6 text-lg font-medium rounded-lg"
+              // onClick={handleGuestLogin}
             >
-              {isLogin
-                ? "Need an account? Sign up here"
-                : "Already have an account? Sign in here"}
+              Login as Guest
+            </Button>
+
+            <button
+              // onClick={handleForgotPassword}
+              className="block w-full text-center text-sm text-blue-600 hover:text-blue-700 mt-2"
+            >
+              Forgot Password?
             </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <span className="text-sm text-gray-600">
+              {isLogin ? "Don't have an account?" : "Already have an account?"}
+            </span>{" "}
+            {isLogin ? (
+              <Link
+                to="/register"
+                className="text-blue-600 hover:text-blue-700 text-sm underline"
+              >
+                Need an account? Sign up here
+              </Link>
+            ) : (
+              <button
+                onClick={() => setIsLogin(true)}
+                className="text-blue-600 hover:text-blue-700 text-sm underline"
+              >
+                Already have an account? Sign in here
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>
