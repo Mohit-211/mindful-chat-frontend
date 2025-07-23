@@ -30,5 +30,7 @@ const App = () => (
     </TooltipProvider>
   </QueryClientProvider>
 );
+// In App.tsx or your Router file:
+console.log("App mounted");
 
 export default App;

@@ -19,6 +19,8 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [userName, setUserName] = useState("User");
   const [userId, setUserId] = useState("");
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestId, setGuestId] = useState("");
 
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -26,49 +28,84 @@ const Chat = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // On mount: check token & get user info
+  // --- SUPER VERBOSE MOUNT LOGIC ---
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/";
-      return;
-    }
+    const guestName = localStorage.getItem("guestName");
+    const guestIdStored = localStorage.getItem("guestId");
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Unauthorized");
-        return res.json();
+    console.log("[MOUNT] Chat.tsx");
+    console.log("[MOUNT] token:", token);
+    console.log("[MOUNT] guestName:", guestName);
+    console.log("[MOUNT] guestIdStored:", guestIdStored);
+
+    if (token) {
+      console.log("[MOUNT] Detected token. Fetching /api/me ...");
+      fetch(`${import.meta.env.VITE_API_URL}/api/me`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .then((data) => {
-        setUserName(data.name || "User");
-        setUserId(data.id);
-      })
-      .catch(() => {
-        localStorage.removeItem("token");
-        window.location.href = "/";
-      });
+        .then((res) => {
+          console.log("[MOUNT] /api/me response status:", res.status);
+          if (!res.ok) throw new Error(`Unauthorized - ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          console.log("[MOUNT] /api/me data:", data);
+          setUserName(data.name || "User");
+          setUserId(data.id);
+        })
+        .catch((e) => {
+          console.log(
+            "[MOUNT] Token fetch failed. Removing and redirecting.",
+            e
+          );
+          localStorage.removeItem("token");
+          window.location.href = "/";
+        });
+    } else if (guestName && guestIdStored) {
+      console.log("[MOUNT] Detected guest mode.");
+      setIsGuest(true);
+      setUserName(guestName);
+      setGuestId(guestIdStored);
+    } else {
+      console.log(
+        "[MOUNT] Redirecting because missing keys:",
+        "guestName:",
+        guestName,
+        "guestIdStored:",
+        guestIdStored,
+        "token:",
+        token
+      );
+      window.location.href = "/";
+    }
   }, []);
 
-  // Load previous chat history
+  // Load previous chat history (for logged-in users only)
   useEffect(() => {
+    console.log(
+      "[HISTORY] useEffect triggered. userId:",
+      userId,
+      "isGuest:",
+      isGuest
+    );
+    if (!userId || isGuest) return;
     const token = localStorage.getItem("token");
     if (!token) return;
 
     const fetchChatHistory = async () => {
       try {
+        console.log("[HISTORY] Fetching chat history for user.");
         const res = await fetch(
           `${import.meta.env.VITE_API_URL}/api/chat/history`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
+        console.log("[HISTORY] Fetch status:", res.status);
         if (!res.ok) throw new Error("Failed to fetch chat history");
-
         const data = await res.json();
         const chats = data.chats.reverse();
-
         if (!chats.length) return;
 
         const formattedMessages: ChatMessage[] = [];
@@ -90,41 +127,61 @@ const Chat = () => {
 
         setMessages(formattedMessages);
       } catch (err) {
-        console.error("Could not load chat history:", err);
+        console.log("[HISTORY] Error, clearing token and redirecting.");
         localStorage.removeItem("token");
         window.location.href = "/";
       }
     };
 
     fetchChatHistory();
-  }, []);
+  }, [userId, isGuest]);
 
-  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Check feedback status once userId is available
+  // Feedback status
   useEffect(() => {
-    if (!userId) return;
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    console.log(
+      "[FEEDBACK] Checking feedback status. userId:",
+      userId,
+      "isGuest:",
+      isGuest,
+      "hasGivenFeedback:",
+      hasGivenFeedback,
+      "guestId:",
+      guestId
+    );
+    if ((!userId && !isGuest) || hasGivenFeedback) return;
 
-    fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const feedbackUrl = isGuest
+      ? `/api/guest/feedback/status?guestId=${guestId}`
+      : `/api/feedback`;
+
+    const headers: any = isGuest
+      ? {}
+      : { Authorization: `Bearer ${localStorage.getItem("token")}` };
+
+    fetch(`${import.meta.env.VITE_API_URL}${feedbackUrl}`, { headers })
       .then((res) => {
-        if (!res.ok) throw new Error("Failed to check feedback status");
+        console.log("[FEEDBACK] Fetch status:", res.status);
+        if (!res.ok) throw new Error("Feedback check failed");
         return res.json();
       })
-      .then((data) => setHasGivenFeedback(data.hasFeedback))
-      .catch((err) => console.error("Feedback check failed:", err));
-  }, [userId]);
+      .then((data) => {
+        console.log("[FEEDBACK] Received data:", data);
+        setHasGivenFeedback(data.hasFeedback);
+      })
+      .catch((e) => {
+        console.log("[FEEDBACK] Error checking feedback:", e);
+      });
+  }, [userId, isGuest, guestId]);
 
   // Prompt feedback on tab close
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!hasGivenFeedback) {
+        console.log("[UNLOAD] Prompting feedback modal.");
         e.preventDefault();
         e.returnValue = "";
         setShowFeedbackModal(true);
@@ -135,6 +192,7 @@ const Chat = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasGivenFeedback]);
 
+  // Send message handler (user or guest)
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
@@ -150,29 +208,43 @@ const Chat = () => {
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
+      let url = "";
+      let payload: any = {};
+      let headers: any = { "Content-Type": "application/json" };
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/chat`, {
+      if (isGuest) {
+        url = "/api/guest/chat";
+        payload = { guestId, message: inputMessage, model: "openai" };
+        console.log("[SEND] Sending as guest:", payload);
+      } else {
+        url = "/api/chat";
+        payload = { message: inputMessage, model };
+        headers.Authorization = `Bearer ${localStorage.getItem("token")}`;
+        console.log("[SEND] Sending as user:", payload);
+      }
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL}${url}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ message: inputMessage, model }),
+        headers,
+        body: JSON.stringify(payload),
       });
 
+      console.log("[SEND] Response status:", res.status);
+
       const data = await res.json();
+      console.log("[SEND] Data received:", data);
 
       const botMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        text: data.response || "Sorry, I couldn’t understand that.",
+        text:
+          data.response || data.reply || "Sorry, I couldn’t understand that.",
         isUser: false,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
-      console.error("Chat API error:", error);
+      console.log("[SEND] Error in sendMessage:", error);
       setMessages((prev) => [
         ...prev,
         {
@@ -207,36 +279,54 @@ const Chat = () => {
   };
 
   const logout = async () => {
-    const token = localStorage.getItem("token");
-    try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/logout`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch (err) {
-      console.warn("Logout failed:", err);
+    console.log("[LOGOUT] Logging out user. isGuest:", isGuest);
+    if (!isGuest) {
+      const token = localStorage.getItem("token");
+      try {
+        await fetch(`${import.meta.env.VITE_API_URL}/api/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (err) {}
+      localStorage.removeItem("token");
     }
-    localStorage.removeItem("token");
+    localStorage.removeItem("guestName");
+    localStorage.removeItem("guestId");
     window.location.href = "/";
   };
 
   const submitFeedback = async () => {
-    const token = localStorage.getItem("token");
+    const url = isGuest ? "/api/guest/feedback" : "/api/feedback";
+
+    const headers: any = {
+      "Content-Type": "application/json",
+    };
+
+    const body = isGuest
+      ? {
+          guestId,
+          guestName: userName,
+          feedback: feedbackText,
+        }
+      : {
+          feedback: feedbackText,
+        };
+
+    if (!isGuest) {
+      headers.Authorization = `Bearer ${localStorage.getItem("token")}`;
+    }
+    console.log("[FEEDBACK] Submitting feedback", body);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}${url}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ feedback: feedbackText }),
+        headers,
+        body: JSON.stringify(body),
       });
 
-      const data = await res.json(); // read the response JSON (even on error)
+      const data = await res.json();
 
       if (!res.ok) {
-        // Show specific error from backend, if any
         alert(data.error || "Failed to submit feedback.");
         return;
       }
@@ -245,24 +335,18 @@ const Chat = () => {
       setShowFeedbackModal(false);
       alert("Thank you for your feedback!");
     } catch (err) {
-      console.error("Feedback error:", err);
       alert("There was an issue submitting your feedback. Please try again.");
     }
   };
+
+  // --- END VERBOSE LOGS ---
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col">
       {/* Top Bar */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center">
-            <img
-              src="/icon.png"
-              alt="Madira Logo"
-              className="w-full h-full object-contain"
-            />
-          </div>
-
+          <img src="/icon.png" alt="Logo" className="w-8 h-8 object-contain" />
           <div>
             <h1 className="font-semibold text-gray-800">Welcome, {userName}</h1>
             <p className="text-xs text-gray-500">
@@ -294,19 +378,21 @@ const Chat = () => {
       </div>
 
       {/* Model Selector */}
-      <div className="px-4 pt-2">
-        <label className="text-sm text-gray-600 mr-2">Choose Model:</label>
-        <select
-          className="text-sm border rounded px-2 py-1 text-gray-700"
-          value={model}
-          onChange={(e) => setModel(e.target.value as "ollama" | "openai")}
-        >
-          <option value="ollama">Ollama</option>
-          <option value="openai">OpenAI</option>
-        </select>
-      </div>
+      {!isGuest && (
+        <div className="px-4 pt-2">
+          <label className="text-sm text-gray-600 mr-2">Choose Model:</label>
+          <select
+            className="text-sm border rounded px-2 py-1 text-gray-700"
+            value={model}
+            onChange={(e) => setModel(e.target.value as "ollama" | "openai")}
+          >
+            <option value="ollama">Ollama</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+      )}
 
-      {/* Messages */}
+      {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
           <div
@@ -334,7 +420,6 @@ const Chat = () => {
             </Card>
           </div>
         ))}
-
         {isLoading && (
           <div className="flex justify-start">
             <Card className="bg-white/80 text-gray-800 border-gray-200 p-4">
@@ -349,7 +434,7 @@ const Chat = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
+      {/* Input Box */}
       <div className="bg-white/80 backdrop-blur-sm border-t border-gray-200 p-4">
         <div className="flex space-x-2">
           <Input
@@ -405,5 +490,7 @@ const Chat = () => {
     </div>
   );
 };
+
+console.log("Chat component module loaded!");
 
 export default Chat;

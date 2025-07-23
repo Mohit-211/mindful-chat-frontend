@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
+import { GuestLoginModal } from "@/components/ui/GuestLoginModal";
 
 interface LoginProps {
   onBack: () => void;
@@ -26,6 +27,7 @@ const Login = ({ onBack }: LoginProps) => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,12 +63,40 @@ const Login = ({ onBack }: LoginProps) => {
       localStorage.setItem("token", data.token);
 
       // Redirect to chat
-
       navigate("/chat");
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async (guestName: string, entrySentence: string) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/guest/start`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            guest_name: guestName,
+            entry_sentence: entrySentence,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error || "Guest login failed");
+
+      localStorage.setItem("guestName", data.name);
+      localStorage.setItem("guestId", data.guestId);
+
+      navigate("/chat");
+    } catch (err: any) {
+      console.error("Guest login error:", err.message);
     }
   };
 
@@ -95,7 +125,7 @@ const Login = ({ onBack }: LoginProps) => {
           </div>
 
           <CardTitle className="text-2xl font-semibold text-gray-800 mb-2">
-            {isLogin ? "" : "Create Account"}
+            {isLogin ? "Sign In" : "Create Account"}
           </CardTitle>
 
           <CardDescription className="text-gray-600">
@@ -181,45 +211,49 @@ const Login = ({ onBack }: LoginProps) => {
                 ? "Login"
                 : "Create Account"}
             </Button>
-
-            <Button
-              variant="outline"
-              className="w-full py-6 text-lg font-medium rounded-lg"
-              // onClick={handleGuestLogin}
-            >
-              Login as Guest
-            </Button>
-
-            <button
-              // onClick={handleForgotPassword}
-              className="block w-full text-center text-sm text-blue-600 hover:text-blue-700 mt-2"
-            >
-              Forgot Password?
-            </button>
           </form>
+
+          {/* Guest login button is OUTSIDE the form and not a submit */}
+          <Button
+            variant="outline"
+            className="w-full py-6 text-lg font-medium rounded-lg mt-4"
+            onClick={() => setShowGuestModal(true)}
+            type="button"
+          >
+            Login as Guest
+          </Button>
+
+          <button
+            // onClick={handleForgotPassword}
+            className="block w-full text-center text-sm text-blue-600 hover:text-blue-700 mt-2"
+            type="button"
+          >
+            Forgot Password?
+          </button>
 
           <div className="mt-6 text-center">
             <span className="text-sm text-gray-600">
               {isLogin ? "Don't have an account?" : "Already have an account?"}
             </span>{" "}
-            {isLogin ? (
-              <Link
-                to="/register"
-                className="text-blue-600 hover:text-blue-700 text-sm underline"
-              >
-                Need an account? Sign up here
-              </Link>
-            ) : (
-              <button
-                onClick={() => setIsLogin(true)}
-                className="text-blue-600 hover:text-blue-700 text-sm underline"
-              >
-                Already have an account? Sign in here
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsLogin((prev) => !prev)}
+              className="text-blue-600 hover:text-blue-700 text-sm underline"
+            >
+              {isLogin ? "Sign up here" : "Sign in here"}
+            </button>
           </div>
         </CardContent>
       </Card>
+      {showGuestModal && (
+        <GuestLoginModal
+          onClose={() => setShowGuestModal(false)}
+          onContinue={(name, sentence) => {
+            setShowGuestModal(false);
+            handleGuestLogin(name, sentence);
+          }}
+        />
+      )}
     </div>
   );
 };
